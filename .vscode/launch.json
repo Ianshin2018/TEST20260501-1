@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Launch LibraryApplication",
+      "request": "launch",
+      "mainClass": "com.example.library.LibraryApplication",
+      "projectName": "library-system",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

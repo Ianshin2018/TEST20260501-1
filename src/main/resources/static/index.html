@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圖書館會員註冊、登入與借閱</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        :root {
+            --bg: #f4efe7;
+            --panel: rgba(255, 252, 246, 0.92);
+            --ink: #1f2937;
+            --muted: #6b7280;
+            --accent: #c06c2e;
+            --accent-dark: #8f4b1f;
+            --line: rgba(31, 41, 55, 0.12);
+            --success: #0f766e;
+            --danger: #b42318;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at top left, rgba(192, 108, 46, 0.18), transparent 28%),
+                radial-gradient(circle at right, rgba(15, 118, 110, 0.15), transparent 24%),
+                linear-gradient(135deg, #f9f4ed 0%, #efe5d5 100%);
+            min-height: 100vh;
+        }
+
+        .shell {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 0;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 0.95fr 1.05fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            box-shadow: 0 18px 48px rgba(31, 41, 55, 0.08);
+            backdrop-filter: blur(10px);
+        }
+
+        .intro, .card { padding: 28px; }
+        .eyebrow {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(192, 108, 46, 0.12);
+            color: var(--accent-dark);
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            font-size: 12px;
+        }
+
+        h1 {
+            margin: 16px 0 12px;
+            font-size: clamp(32px, 4vw, 52px);
+            line-height: 1.05;
+        }
+
+        p { line-height: 1.7; }
+        .muted { color: var(--muted); }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tabs button, .action-btn {
+            border: 0;
+            border-radius: 14px;
+            padding: 12px 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .tabs button {
+            flex: 1;
+            color: var(--muted);
+            background: rgba(31, 41, 55, 0.06);
+        }
+
+        .tabs button.active, .action-btn {
+            color: white;
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            box-shadow: 0 12px 24px rgba(192, 108, 46, 0.2);
+        }
+
+        form {
+            display: grid;
+            gap: 14px;
+        }
+
+        label {
+            display: grid;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            border: 1px solid rgba(31, 41, 55, 0.14);
+            border-radius: 14px;
+            padding: 14px 16px;
+            font-size: 15px;
+            outline: none;
+            background: rgba(255, 255, 255, 0.85);
+        }
+
+        .message, .status-bar, .result, .inventory {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(31, 41, 55, 0.08);
+            background: rgba(31, 41, 55, 0.04);
+        }
+
+        .message.success {
+            color: var(--success);
+            background: rgba(15, 118, 110, 0.08);
+            border-color: rgba(15, 118, 110, 0.18);
+        }
+
+        .message.error {
+            color: var(--danger);
+            background: rgba(180, 35, 24, 0.08);
+            border-color: rgba(180, 35, 24, 0.16);
+        }
+
+        .result dl {
+            margin: 0;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 14px;
+            font-size: 14px;
+        }
+
+        .inventory table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .inventory th, .inventory td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(31, 41, 55, 0.08);
+        }
+
+        .inventory .action-btn {
+            padding: 8px 12px;
+            font-size: 13px;
+            box-shadow: none;
+        }
+
+        @media (max-width: 900px) {
+            .hero { grid-template-columns: 1fr; }
+            .shell { padding: 20px 0; }
+            .intro, .card { padding: 22px; }
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="shell">
+    <section class="hero">
+        <article class="panel intro">
+            <span class="eyebrow">LIBRARY ACCESS CONTROL</span>
+            <h1>登入後才能借閱與還書</h1>
+            <p class="muted">
+                系統會在登入成功後發出 token，借閱與還書 API 只接受已登入使用者的授權請求。
+                未登入或 token 失效時，系統會直接拒絕操作。
+            </p>
+
+            <section class="status-bar">
+                <p v-if="authToken">目前已登入，可進行借閱與還書。</p>
+                <p v-else>目前尚未登入，借閱與還書會被系統阻擋。</p>
+            </section>
+
+            <section v-if="result" class="result">
+                <h2>最近一次回應</h2>
+                <dl>
+                    <dt>使用者 ID</dt>
+                    <dd>{{ result.userId ?? '-' }}</dd>
+                    <dt>手機號碼</dt>
+                    <dd>{{ result.phoneNumber ?? '-' }}</dd>
+                    <dt>使用者名稱</dt>
+                    <dd>{{ result.userName ?? '-' }}</dd>
+                    <dt v-if="result.authToken">登入 Token</dt>
+                    <dd v-if="result.authToken">{{ result.authToken }}</dd>
+                </dl>
+            </section>
+        </article>
+
+        <aside class="panel card">
+            <div class="tabs">
+                <button :class="{ active: activeTab === 'register' }" @click="switchTab('register')">註冊</button>
+                <button :class="{ active: activeTab === 'login' }" @click="switchTab('login')">登入</button>
+            </div>
+
+            <form v-if="activeTab === 'register'" @submit.prevent="register">
+                <label>手機號碼
+                    <input v-model.trim="registerForm.phoneNumber" type="text" inputmode="numeric" placeholder="例如 0912345678">
+                </label>
+                <label>使用者名稱
+                    <input v-model.trim="registerForm.userName" type="text" placeholder="請輸入顯示名稱">
+                </label>
+                <label>密碼
+                    <input v-model="registerForm.password" type="password" placeholder="至少 8 碼">
+                </label>
+                <button class="action-btn" type="submit" :disabled="loading">{{ loading ? '處理中...' : '建立帳號' }}</button>
+            </form>
+
+            <form v-else @submit.prevent="login">
+                <label>手機號碼
+                    <input v-model.trim="loginForm.phoneNumber" type="text" inputmode="numeric" placeholder="請輸入註冊手機">
+                </label>
+                <label>密碼
+                    <input v-model="loginForm.password" type="password" placeholder="請輸入密碼">
+                </label>
+                <button class="action-btn" type="submit" :disabled="loading">{{ loading ? '處理中...' : '登入系統' }}</button>
+            </form>
+
+            <div v-if="message.text" :class="['message', message.type]">
+                {{ message.text }}
+            </div>
+
+            <section class="inventory">
+                <h2>庫存清單</h2>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>庫存 ID</th>
+                        <th>書名</th>
+                        <th>作者</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="item in inventories" :key="item.inventoryId">
+                        <td>{{ item.inventoryId }}</td>
+                        <td>{{ item.bookName }}</td>
+                        <td>{{ item.author }}</td>
+                        <td>{{ item.status }}</td>
+                        <td>
+                            <button
+                                class="action-btn"
+                                v-if="item.status === 'AVAILABLE'"
+                                @click="borrow(item.inventoryId)">
+                                借閱
+                            </button>
+                            <button
+                                class="action-btn"
+                                v-else
+                                @click="returnBook(item.inventoryId)">
+                                還書
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </section>
+        </aside>
+    </section>
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                activeTab: 'register',
+                loading: false,
+                message: { text: '', type: 'success' },
+                result: null,
+                authToken: '',
+                inventories: [],
+                registerForm: {
+                    phoneNumber: '',
+                    userName: '',
+                    password: ''
+                },
+                loginForm: {
+                    phoneNumber: '',
+                    password: ''
+                }
+            };
+        },
+        methods: {
+            switchTab(tab) {
+                this.activeTab = tab;
+                this.message = { text: '', type: 'success' };
+                this.result = null;
+            },
+            authHeaders() {
+                return this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {};
+            },
+            async fetchInventories() {
+                const response = await fetch('/api/inventories');
+                const data = await response.json();
+                if (data.success) {
+                    this.inventories = data.data;
+                }
+            },
+            async register() {
+                await this.submit('/api/auth/register', this.registerForm);
+            },
+            async login() {
+                await this.submit('/api/auth/login', this.loginForm);
+            },
+            async borrow(inventoryId) {
+                await this.submit('/api/borrowings/borrow', { inventoryId }, true);
+            },
+            async returnBook(inventoryId) {
+                await this.submit('/api/borrowings/return', { inventoryId }, true);
+            },
+            async submit(url, payload, requiresAuth = false) {
+                this.loading = true;
+                this.message = { text: '', type: 'success' };
+
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (requiresAuth) {
+                        Object.assign(headers, this.authHeaders());
+                    }
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(payload)
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || '操作失敗。');
+                    }
+
+                    this.message = { text: data.message, type: 'success' };
+                    this.result = data.data;
+                    if (data.data && data.data.authToken) {
+                        this.authToken = data.data.authToken;
+                    }
+                    await this.fetchInventories();
+                } catch (error) {
+                    this.message = { text: error.message || '系統發生錯誤，請稍後再試。', type: 'error' };
+                    this.result = null;
+                } finally {
+                    this.loading = false;
+                }
+            }
+        },
+        async mounted() {
+            await this.fetchInventories();
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
